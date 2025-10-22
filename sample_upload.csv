@@ -1,0 +1,4 @@
+name,url,venue_name,venue_address,event_date,description,category,venue_city
+"Local Concert Series",https://example.com/concert,"The Basement","123 Main St, Nashville, TN","2025-11-01 19:00","Great local band performing",entertainment,Nashville
+"Food Festival",https://example.com/foodfest,"Centennial Park","2500 West End Ave","2025-11-15","Annual Nashville food festival",food,Nashville
+"Tech Meetup",https://example.com/meetup,"WeWork Downtown","300 Commerce St","2025-11-20 18:00","Monthly tech networking event",networking,Nashville

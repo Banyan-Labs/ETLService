@@ -1,4 +1,6 @@
 import scrapy
+
+
 class EventItem(scrapy.Item):
     name = scrapy.Field()
     event_id = scrapy.Field()
@@ -9,6 +11,7 @@ class EventItem(scrapy.Item):
     event_date = scrapy.Field()
     description = scrapy.Field()
     source = scrapy.Field()
+
 
 class BusinessItem(scrapy.Item):
     name = scrapy.Field()
@@ -26,3 +29,10 @@ class BusinessItem(scrapy.Item):
     season = scrapy.Field()
     latitude = scrapy.Field()
     longitude = scrapy.Field()
+
+
+class FlexibleItem(scrapy.Item):
+    def __setitem__(self, key, value):
+        if key not in self.fields:
+            self.fields[key] = scrapy.Field()
+        super().__setitem__(key, value)

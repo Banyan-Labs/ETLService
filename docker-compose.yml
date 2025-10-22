@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nashville_user -d nashville_tourism"]
+      test: [ "CMD-SHELL", "pg_isready -U nashville_user -d nashville_tourism" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,6 +44,7 @@ services:
         condition: service_started
     volumes:
       - .:/app
+      - uploaded_docs:/app/uploaded_documents
     networks:
       - nashville-network
     restart: unless-stopped
@@ -68,6 +69,7 @@ services:
         condition: service_started
     volumes:
       - .:/app
+      - uploaded_docs:/app/uploaded_documents
     networks:
       - nashville-network
     restart: unless-stopped
@@ -108,6 +110,7 @@ services:
     restart: unless-stopped
 volumes:
   postgres_data:
+  uploaded_docs:
 networks:
   nashville-network:
     driver: bridge

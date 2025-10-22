@@ -15,3 +15,5 @@ env/
 *_raw.json
 *_transformed.json
 scraped_data.db
+uploaded_documents/*
+!uploaded_documents/.gitkeep

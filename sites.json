@@ -22,7 +22,7 @@
         "name_filter_out": "Best Rate",
         "fields": {
             "name": "css:a[rel='no follow']::text, span[style*='font-size: 14pt;'] a::text",
-            "url": "css:a[rel='no follow']::attr(href)",
+            "url": "css:a::attr(href)",
             "venue_address": "css:span._2iem strong::text",
             "description": "xpath:.//br[1]/following-sibling::text()"
         },
@@ -43,6 +43,25 @@
         "defaults": {
             "venue_name": "The Underdog",
             "venue_address": "Nashville, TN"
+        }
+    },
+    "playplayground-events": {
+        "start_url": "https://playplayground.com/nashville/events/",
+        "item_container_selector": "div.e-con-full.e-con.e-child",
+        "fields": {
+            "name": "xpath:.//*[contains(@class, 'elementor-heading-title')]/text()",
+            "description": "xpath:.//div[contains(@class, 'elementor-widget-text-editor')]//p[1]//text()",
+            "event_date": "xpath:.//div[contains(@class, 'elementor-widget-text-editor')]//p[2]//text()",
+            "url": "xpath:.//a/@href"
+        },
+        "uses_playwright": true,
+        "wait_after_load": 3000,
+        "category": "activity",
+        "defaults": {
+            "venue_name": "Play Playground Nashville",
+            "venue_city": "Nashville",
+            "venue_address": "5055 Broadway Nashville, TN",
+            "url": "https://playplayground.com/nashville/events/"
         }
     }
 }

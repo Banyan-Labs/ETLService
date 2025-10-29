@@ -54,6 +54,7 @@ services:
     ports:
       - "6023:6023"
     environment:
+      - PYTHONDONTWRITEBYTECODE=1
       - DATABASE_URL=postgresql://nashville_user:nashville_pass@postgres:5432/nashville_tourism
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY}
       - SEATGEEK_CLIENT_ID=${SEATGEEK_CLIENT_ID}
@@ -111,3 +112,4 @@ volumes:
 networks:
   nashville-network:
     driver: bridge
+

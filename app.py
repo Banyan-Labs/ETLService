@@ -6,33 +6,38 @@ from tasks import scrape_and_transform_chain, process_document_task
 from db_extractor import PostgresExtractor
 import os
 UPLOAD_FOLDER = '/app/uploads'
-ALLOWED_EXTENSIONS = {'csv', 'json', 'pdf', 'xlsx', 'xls'}
+ALLOWED_EXTENSIONS = {'csv', 'json', 'pdf', 'xlsx', 'xls', 'docx'}
 PER_PAGE = 25
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'thisismykey'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 db_manager = PostgresExtractor()
+
+
 def allowed_file(filename):
     """Checks if the filename has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def format_date_filter(iso_date_str):
     """Jinja filter to format ISO date strings nicely."""
     if not iso_date_str:
         return ""
     try:
-        dt_object = datetime.fromisoformat(iso_date_str.replace('Z', '+00:00').split('+')[0])
+        dt_object = datetime.fromisoformat(
+            iso_date_str.replace('Z', '+00:00').split('+')[0])
         return dt_object.strftime('%b %d, %Y at %I:%M %p')
     except (ValueError, TypeError):
         return iso_date_str
+
 
 def get_pagination_range(current_page, total_pages, max_visible=5):
     """Calculates pagination links to display."""
     start_page = max(1, current_page - max_visible // 2)
     end_page = min(total_pages, start_page + max_visible - 1)
     if end_page - start_page + 1 < max_visible:
-         start_page = max(1, end_page - max_visible + 1)
+        start_page = max(1, end_page - max_visible + 1)
 
     pages = list(range(start_page, end_page + 1))
 
@@ -43,7 +48,11 @@ def get_pagination_range(current_page, total_pages, max_visible=5):
         'show_right_ellipsis': end_page < total_pages - 1,
         'pages': pages
     }
+
+
 app.jinja_env.filters['format_date'] = format_date_filter
+
+
 @app.route('/')
 def index():
     """Renders the main dashboard page."""
@@ -237,6 +246,8 @@ def index():
         search_term=search_term,
         total_events=total_events
     )
+
+
 @app.route('/upload_document', methods=['POST'])
 def upload_document():
     """Handles multiple file uploads and dispatches tasks."""
@@ -260,16 +271,21 @@ def upload_document():
                 print(f"Dispatched document task for {filename}.")
                 files_processed += 1
             except Exception as e:
-                print(f"ERROR saving or dispatching task for {file.filename}: {e}", file=sys.stderr)
+                print(
+                    f"ERROR saving or dispatching task for {file.filename}: {e}", file=sys.stderr)
                 files_skipped += 1
         elif file:
             print(f"ALERT: File type not allowed, skipped: {file.filename}")
             files_skipped += 1
     if files_processed > 0:
-         flash(f'Successfully dispatched {files_processed} file(s) for processing.', 'success')
+        flash(
+            f'Successfully dispatched {files_processed} file(s) for processing.', 'success')
     if files_skipped > 0:
-         flash(f'Skipped {files_skipped} file(s) due to errors or disallowed types.', 'warning')
+        flash(
+            f'Skipped {files_skipped} file(s) due to errors or disallowed types.', 'warning')
     return redirect(url_for('index'))
+
+
 @app.route('/clear', methods=['POST'])
 def clear_data():
     """Clears the events and raw_data tables."""
@@ -277,9 +293,10 @@ def clear_data():
     try:
         conn = db_manager._get_connection()
         if conn is None:
-             raise ConnectionError("Failed to get database connection.")
+            raise ConnectionError("Failed to get database connection.")
         cursor = conn.cursor()
-        cursor.execute("TRUNCATE TABLE events, raw_data RESTART IDENTITY CASCADE;")
+        cursor.execute(
+            "TRUNCATE TABLE events, raw_data RESTART IDENTITY CASCADE;")
         conn.commit()
         print("Database cleared by user action.")
         flash('All event and raw data cleared successfully.', 'success')
@@ -293,6 +310,8 @@ def clear_data():
         if conn:
             conn.close()
     return redirect(url_for('index'))
+
+
 @app.route('/launch_manual_scrape', methods=['POST'])
 def launch_manual_scrape():
     """Triggers the full scrape and transform chain."""
@@ -304,13 +323,16 @@ def launch_manual_scrape():
         print(f"Error dispatching scrape task: {e}", file=sys.stderr)
         flash('Error initiating manual scrape.', 'error')
     return redirect(url_for('index'))
+
+
 if __name__ == "__main__":
-     if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
         try:
             os.makedirs(app.config['UPLOAD_FOLDER'])
             print(f"Created upload directory: {app.config['UPLOAD_FOLDER']}")
         except OSError as e:
-            print(f"CRITICAL ERROR: Could not create upload directory '{app.config['UPLOAD_FOLDER']}'. Error: {e}", file=sys.stderr)
+            print(
+                f"CRITICAL ERROR: Could not create upload directory '{app.config['UPLOAD_FOLDER']}'. Error: {e}", file=sys.stderr)
             sys.exit(1)
-     port = int(os.environ.get('PORT', 8000))
-     app.run(host='0.0.0.0', port=port, debug=True)
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port, debug=True)

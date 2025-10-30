@@ -11,3 +11,7 @@ pyproj==3.7.0
 PyMuPDF
 Werkzeug
 google-generativeai
+pandas
+openpyxl
+xlrd
+python-docx

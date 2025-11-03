@@ -1,3 +1,4 @@
+\c nashville_tourism;
 CREATE TABLE IF NOT EXISTS raw_data (
     id SERIAL PRIMARY KEY,
     source_spider TEXT,

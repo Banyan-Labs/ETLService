@@ -9,7 +9,7 @@ services:
     ports:
       - "5439:5432"
     volumes:
-      - pgdata_v2:/var/lib/postgresql/data
+      - pgdata_v3:/var/lib/postgresql/data
       - ./db_init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nashville_user -d nashville_tourism"]
@@ -125,8 +125,7 @@ services:
       - nashville-network
     restart: unless-stopped
 volumes:
-  pgdata_v2:
+  pgdata_v3:
 networks:
   nashville-network:
     driver: bridge
-

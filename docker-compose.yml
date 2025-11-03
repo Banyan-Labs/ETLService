@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15
+    build: ./postgres_build
     container_name: nashville-postgres
     environment:
       POSTGRES_DB: nashville_tourism
@@ -9,8 +9,7 @@ services:
     ports:
       - "5439:5432"
     volumes:
-      - pgdata_v5:/var/lib/postgresql/data
-      - ./db_init:/docker-entrypoint-initdb.d
+      - pgdata_v7:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nashville_user -d nashville_tourism"]
       interval: 10s
@@ -125,7 +124,7 @@ services:
       - nashville-network
     restart: unless-stopped
 volumes:
-  pgdata_v5:
+  pgdata_v7:
 networks:
   nashville-network:
     driver: bridge

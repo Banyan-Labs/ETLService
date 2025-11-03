@@ -38,7 +38,7 @@ def run_all_spiders_task():
     project_dir = '/app/scraper'
     scrapy_executable = "scrapy"
     env = os.environ.copy()
-    env['PYTHONPATH'] = '/app'
+    env['PYTHONPATH'] = f'/app:{os.environ.get("PYTHONPATH", "")}'
     try:
         result = subprocess.run([scrapy_executable, "list"], cwd=project_dir,
                                 capture_output=True, text=True, check=True, env=env)

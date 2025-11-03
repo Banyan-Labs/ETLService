@@ -7,7 +7,6 @@ import scrapy
 from scraper.nashville.items import BusinessItem
 class PDFSpider(scrapy.Spider):
     name = 'pdf'
-    # Regex patterns for data extraction
     DATE_PATTERNS = [
         r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4}',
         r'\d{1,2}/\d{1,2}/\d{2,4}',

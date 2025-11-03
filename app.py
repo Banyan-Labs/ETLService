@@ -12,14 +12,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'thisismykey'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 db_manager = PostgresExtractor()
-
-
 def allowed_file(filename):
     """Checks if the filename has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
 def format_date_filter(iso_date_str):
     """Jinja filter to format ISO date strings nicely."""
     if not iso_date_str:
@@ -30,17 +26,13 @@ def format_date_filter(iso_date_str):
         return dt_object.strftime('%b %d, %Y at %I:%M %p')
     except (ValueError, TypeError):
         return iso_date_str
-
-
 def get_pagination_range(current_page, total_pages, max_visible=5):
     """Calculates pagination links to display."""
     start_page = max(1, current_page - max_visible // 2)
     end_page = min(total_pages, start_page + max_visible - 1)
     if end_page - start_page + 1 < max_visible:
         start_page = max(1, end_page - max_visible + 1)
-
     pages = list(range(start_page, end_page + 1))
-
     return {
         'show_first': start_page > 1,
         'show_last': end_page < total_pages,
@@ -48,11 +40,7 @@ def get_pagination_range(current_page, total_pages, max_visible=5):
         'show_right_ellipsis': end_page < total_pages - 1,
         'pages': pages
     }
-
-
 app.jinja_env.filters['format_date'] = format_date_filter
-
-
 @app.route('/')
 def index():
     """Renders the main dashboard page."""
@@ -65,7 +53,6 @@ def index():
     selected_source = request.args.get('source', '')
     selected_category = request.args.get('category', '')
     search_term = request.args.get('search', '').strip()
-
     try:
         events, sources, categories, total_pages, total_events = db_manager.fetch_paginated_data(
             page, selected_source, selected_category, search_term
@@ -74,7 +61,6 @@ def index():
         print(f"Error fetching data from database: {e}", file=sys.stderr)
         events, sources, categories, total_pages, total_events = [], [], [], 0, 0
         flash('Error fetching data from the database.', 'error')
-
     pagination = get_pagination_range(page, total_pages)
     html = """
 <!DOCTYPE html>
@@ -246,8 +232,6 @@ def index():
         search_term=search_term,
         total_events=total_events
     )
-
-
 @app.route('/upload_document', methods=['POST'])
 def upload_document():
     """Handles multiple file uploads and dispatches tasks."""
@@ -284,8 +268,6 @@ def upload_document():
         flash(
             f'Skipped {files_skipped} file(s) due to errors or disallowed types.', 'warning')
     return redirect(url_for('index'))
-
-
 @app.route('/clear', methods=['POST'])
 def clear_data():
     """Clears the events and raw_data tables."""
@@ -310,8 +292,6 @@ def clear_data():
         if conn:
             conn.close()
     return redirect(url_for('index'))
-
-
 @app.route('/launch_manual_scrape', methods=['POST'])
 def launch_manual_scrape():
     """Triggers the full scrape and transform chain."""
@@ -323,8 +303,6 @@ def launch_manual_scrape():
         print(f"Error dispatching scrape task: {e}", file=sys.stderr)
         flash('Error initiating manual scrape.', 'error')
     return redirect(url_for('index'))
-
-
 if __name__ == "__main__":
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         try:

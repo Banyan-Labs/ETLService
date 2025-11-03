@@ -41,8 +41,6 @@ event_schema = {
         "required": ["name"]
     }
 }
-
-
 def get_db_connection():
     try:
         conn = psycopg2.connect(os.environ['DATABASE_URL'])
@@ -53,8 +51,6 @@ def get_db_connection():
     except Exception as e:
         print(f"CRITICAL ERROR: Could not connect to database. Error: {e}")
         return None
-
-
 def transform_arcgis_data(raw_item: dict) -> dict:
     raw_data = json.loads(raw_item['raw_json'])
     category = raw_data.get('category', 'Civic Facility')
@@ -86,8 +82,6 @@ def transform_arcgis_data(raw_item: dict) -> dict:
     if not clean_item.get('name') or not clean_item.get('venue_name'):
         return None
     return clean_item
-
-
 def transform_ticketmaster_data(raw_item: dict) -> dict:
     raw_data = json.loads(raw_item['raw_json'])
     event_date = raw_data.get('event_date')
@@ -109,8 +103,6 @@ def transform_ticketmaster_data(raw_item: dict) -> dict:
     if not clean_item.get('name') or not clean_item.get('venue_name'):
         return None
     return clean_item
-
-
 def transform_yelp_data(raw_item: dict) -> dict:
     raw_data = json.loads(raw_item['raw_json'])
     clean_item = {
@@ -131,8 +123,6 @@ def transform_yelp_data(raw_item: dict) -> dict:
     if not clean_item.get('name'):
         return None
     return clean_item
-
-
 def transform_google_data(raw_item: dict) -> dict:
     raw_data = json.loads(raw_item['raw_json'])
     clean_item = {
@@ -152,8 +142,6 @@ def transform_google_data(raw_item: dict) -> dict:
     if not clean_item.get('name'):
         return None
     return clean_item
-
-
 def transform_generic_data(raw_item: dict) -> dict:
     raw_data = json.loads(raw_item['raw_json'])
     source_map = {
@@ -163,7 +151,6 @@ def transform_generic_data(raw_item: dict) -> dict:
     }
     display_source = source_map.get(raw_item.get(
         'source_spider', 'Unknown'), raw_item.get('source_spider', 'Unknown'))
-
     clean_item = {
         'source': display_source,
         'name': raw_data.get('name'),
@@ -182,8 +169,6 @@ def transform_generic_data(raw_item: dict) -> dict:
     if not clean_item.get('name'):
         return None
     return clean_item
-
-
 def transform_seatgeek_data(raw_item: dict) -> dict:
     raw_data = json.loads(raw_item['raw_json'])
     clean_item = {
@@ -204,16 +189,12 @@ def transform_seatgeek_data(raw_item: dict) -> dict:
     if not clean_item.get('name') or not clean_item.get('venue_name'):
         return None
     return clean_item
-
-
 def transform_document_data(raw_item: dict) -> list[dict]:
     """
     Transform data from document spider (CSV, Excel, Word).
     Handles both structured data and AI-extracted content.
-
     Args:
         raw_item: Raw data dictionary from database
-
     Returns:
         List of cleaned event dictionaries
     """
@@ -223,10 +204,7 @@ def transform_document_data(raw_item: dict) -> list[dict]:
         print(
             f"ERROR: Could not parse raw_json for {raw_item.get('source_spider')}. Skipping.")
         return []
-
     source_spider = raw_item.get('source_spider', '')
-
-    # Determine file type from source_spider name
     file_type = 'unknown'
     if 'csv' in source_spider:
         file_type = 'csv'
@@ -234,13 +212,8 @@ def transform_document_data(raw_item: dict) -> list[dict]:
         file_type = 'excel'
     elif 'docx' in source_spider:
         file_type = 'word'
-
-    # Check if this is text content that needs AI extraction
     if 'text' in raw_data and 'original_filepath' in raw_data:
-        # Use AI extraction for unstructured document text
         return _extract_with_ai(raw_data, file_type)
-
-    # Handle structured data directly from document spider
     clean_item = {
         'source': f'Document Upload ({file_type.upper()})',
         'name': raw_data.get('name'),
@@ -256,31 +229,22 @@ def transform_document_data(raw_item: dict) -> list[dict]:
         'season': raw_data.get('season'),
         'genre': raw_data.get('genre'),
     }
-
-    # Validate minimum requirements
     if not clean_item.get('name'):
         print(f"WARNING: Document item skipped, no name.")
         return []
-
     return [clean_item]
-
-
 def _safe_float(value: any) -> float:
     """Safely convert value to float."""
     try:
         return float(value) if value else None
     except (ValueError, TypeError):
         return None
-
-
 def _extract_with_ai(raw_data: dict, file_type: str) -> list[dict]:
     """
     Extract events from unstructured document text using AI.
-
     Args:
         raw_data: Dictionary containing 'text' and 'original_filepath'
         file_type: Type of file (csv, excel, word)
-
     Returns:
         List of extracted event dictionaries
     """
@@ -383,8 +347,6 @@ def _extract_with_ai(raw_data: dict, file_type: str) -> list[dict]:
                 'genre': None,
             }
         ]
-
-
 def transform_pdf_data(raw_item: dict) -> list[dict]:
     if not model:
         print("CRITICAL: AI model not available. Skipping PDF transform.")
@@ -500,8 +462,6 @@ def transform_pdf_data(raw_item: dict) -> list[dict]:
             print(f"WARNING: Structured PDF item skipped, no name or URL.")
             return []
         return [clean_item]
-
-
 def run_transformations():
     print("transform started")
     conn = get_db_connection()
@@ -554,10 +514,8 @@ def run_transformations():
                         transformed_events.append(item)
             else:
                 transformed_events.append(transformed)
-
     print(
         f"Transforming {len(raw_results)} raw items... {len(transformed_events)} clean events created.")
-
     if not transformed_events:
         print("No events to insert. Transform task finished.")
         cursor.close()
@@ -616,8 +574,6 @@ def run_transformations():
     cursor.close()
     conn.close()
     print(f"transform all done. {items_loaded} items loaded to events table.")
-
-
 if __name__ == '__main__':
     print("Running transformations locally...")
     run_transformations()

@@ -24,10 +24,8 @@ class PostgresExtractor:
             self.conn.rollback()            
             if not table_exists:
                 return events, sources, categories, 0, 0
-            # fetches all sources for the filter dropdown
             self.cursor.execute("select distinct source from events where source is not null order by source")
             sources = [row[0] for row in self.cursor.fetchall()]
-            # fetches all categories for the filter dropdown
             self.cursor.execute("select distinct category from events where category is not null order by category")
             categories = [row[0] for row in self.cursor.fetchall()]
             conditions = []
@@ -35,11 +33,9 @@ class PostgresExtractor:
             if selected_source:
                 conditions.append("source=%s")
                 params.append(selected_source)
-            # adds category filter
             if selected_category:
                 conditions.append("category=%s")
-                params.append(selected_category)            
-            # adds  search filter if term is present
+                params.append(selected_category)
             if search_term:
                 conditions.append("search_vector @@ plainto_tsquery('english',%s)")
                 params.append(search_term)
@@ -49,16 +45,13 @@ class PostgresExtractor:
             total_events = self.cursor.fetchone()[0]
             total_pages = (total_events + self.per_page - 1) // self.per_page
             order_clause = "order by ts_rank(search_vector,plainto_tsquery('english',%s)) desc" if search_term else "order by event_date asc, name asc"
-            # final data retrieval query with limits and offset
             final_query = f"select * from events {where_clause} {order_clause} limit %s offset %s"            
             final_params = list(params)
             if search_term:
                 final_params.append(search_term) 
             final_params.extend([self.per_page, offset])
-            self.cursor.execute(final_query, tuple(final_params))            
-            # retrieves column names to format results as dictionaries
+            self.cursor.execute(final_query, tuple(final_params))
             colnames = [desc[0] for desc in self.cursor.description]
-            # gets results and maps them to dictionaries
             events = [dict(zip(colnames, row)) for row in self.cursor.fetchall()]
             return events, sources, categories, total_pages, total_events
         except Exception as e:

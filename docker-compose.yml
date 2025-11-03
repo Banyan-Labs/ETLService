@@ -50,9 +50,32 @@ services:
   worker:
     build: .
     container_name: nashville-worker
-    command: celery -A tasks worker --loglevel=info
+    command: celery -A tasks worker --loglevel=info -Q celery
     ports:
       - "6023:6023"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - DATABASE_URL=postgresql://nashville_user:nashville_pass@postgres:5432/nashville_tourism
+      - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY}
+      - SEATGEEK_CLIENT_ID=${SEATGEEK_CLIENT_ID}
+      - YELP_API_KEY=${YELP_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - .:/app
+    networks:
+      - nashville-network
+    restart: unless-stopped
+  transform_worker:
+    build: .
+    container_name: nashville-transform-worker
+    command: celery -A tasks worker --loglevel=info -c 1 -Q transform
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - DATABASE_URL=postgresql://nashville_user:nashville_pass@postgres:5432/nashville_tourism

@@ -15,3 +15,4 @@ pandas
 openpyxl
 xlrd
 python-docx
+gunicorn

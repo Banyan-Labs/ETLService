@@ -11,4 +11,4 @@ COPY . .
 EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 ENV SCRAPY_SETTINGS_MODULE=scraper.nashville.settings
-CMD ["python", "app.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]

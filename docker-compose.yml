@@ -1,6 +1,8 @@
 services:
   postgres:
-    build: ./postgres_build
+    build:
+      context: .
+      dockerfile: ./postgres_build/Dockerfile
     container_name: nashville-postgres
     environment:
       POSTGRES_DB: nashville_tourism

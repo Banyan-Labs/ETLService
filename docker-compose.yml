@@ -27,8 +27,6 @@ services:
   app:
     build: .
     container_name: nashville-etl-app
-    ports:
-      - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://nashville_user:nashville_pass@postgres:5432/nashville_tourism
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY}
@@ -51,8 +49,6 @@ services:
     build: .
     container_name: nashville-worker
     command: celery -A tasks worker --loglevel=info -Q celery
-    ports:
-      - "6023:6023"
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - DATABASE_URL=postgresql://nashville_user:nashville_pass@postgres:5432/nashville_tourism
@@ -123,8 +119,6 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@nashville.com
       PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
     depends_on:
       - postgres
     networks:

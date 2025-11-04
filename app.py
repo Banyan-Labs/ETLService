@@ -57,15 +57,25 @@ def index():
     selected_source = request.args.get('source', '')
     selected_category = request.args.get('category', '')
     search_term = request.args.get('search', '').strip()    
-    try:
-        events, sources, categories, total_pages, total_events = db_manager.fetch_paginated_data(
-            page, selected_source, selected_category, search_term
-        )
-    except Exception as e:
-        print(f"Error fetching data from database: {e}", file=sys.stderr)
-        events, sources, categories, total_pages, total_events = [], [], [], 0, 0
-        flash('Error fetching data from the database.', 'error')
-        
+    events, sources, categories, total_pages, total_events = [], [], [], 0, 0    
+    scrape_in_progress = False
+    if redis_client:
+        try:
+            if redis_client.get('scrape_status') == 'running':
+                scrape_in_progress = True
+                print("Scrape in progress, skipping database query on page load.")
+        except Exception as e:
+            print(f"Error checking Redis status: {e}", file=sys.stderr)
+    if not scrape_in_progress:
+        try:
+            events, sources, categories, total_pages, total_events = db_manager.fetch_paginated_data(
+                page, selected_source, selected_category, search_term
+            )
+        except Exception as e:
+            print(f"Error fetching data from database: {e}", file=sys.stderr)
+            flash('Error fetching data from the database.', 'error')
+    else:
+        flash('Hang Tight! Im working on getting all the information you need!!!', 'success')        
     pagination = get_pagination_range(page, total_pages)    
     html = """
 <!DOCTYPE html>
@@ -73,7 +83,7 @@ def index():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nashville ETL Dashboard</title>
+    <title>ETL Service</title>
     <style>
         body { font-family: sans-serif; margin: 2em; background-color: #f4f4f4; color: #333; }
         h1, h3 { color: #555; }
@@ -243,13 +253,18 @@ def index():
             async function checkStatus() {
                 try {
                     const response = await fetch('/scrape_status');
+                    if (!response.ok) {
+                        console.error('Scrape status check failed:', response.status);
+                        loadingOverlay.style.display = 'none';
+                        return;
+                    }
                     const data = await response.json();                    
                     if (data.status === 'running') {
                         loadingOverlay.style.display = 'block';
-                        setTimeout(checkStatus, 5000); // Poll every 5 seconds
+                        setTimeout(checkStatus, 5000); 
                     } else if (data.status === 'complete') {
                         loadingOverlay.style.display = 'none';
-                        window.location.href = window.location.pathname + window.location.search; // Reload page
+                        window.location.href = window.location.pathname + window.location.search; 
                     } else {
                         loadingOverlay.style.display = 'none';
                     }
@@ -262,18 +277,15 @@ def index():
             if (scrapeForm) {
                 scrapeForm.addEventListener('submit', function() {
                     loadingOverlay.style.display = 'block';
-                    setTimeout(checkStatus, 2000); 
                 });
             }            
             if (uploadForm) {
                 uploadForm.addEventListener('submit', function() {
                     loadingOverlay.style.display = 'block';
-                    setTimeout(checkStatus, 2000); 
                 });
             }
         });
     </script>
-
 </body>
 </html>
     """
@@ -294,13 +306,20 @@ def index():
 def scrape_status():
     if not redis_client:
         return jsonify({'status': 'idle', 'error': 'Redis not connected'})        
-    status = redis_client.get('scrape_status')
-    if status == 'complete':
-        redis_client.set('scrape_status', 'idle') 
-        return jsonify({'status': 'complete'})
-    elif status == 'running':
-        return jsonify({'status': 'running'})
-    return jsonify({'status': 'idle'})
+    status = 'idle'
+    try:
+        status_from_redis = redis_client.get('scrape_status')
+        if status_from_redis == 'complete':
+            redis_client.set('scrape_status', 'idle') 
+            status = 'complete'
+        elif status_from_redis == 'running':
+            status = 'running'
+        else:
+            status = 'idle'
+    except Exception as e:
+        print(f"Error reading Redis status: {e}", file=sys.stderr)
+        status = 'idle'         
+    return jsonify({'status': status})
 @app.route('/upload_document', methods=['POST'])
 def upload_document():
     uploaded_files = request.files.getlist('document')
@@ -309,8 +328,11 @@ def upload_document():
         flash('No files selected for upload.', 'error')
         return redirect(url_for('index'))
     if redis_client:
-        redis_client.set('scrape_status', 'running')
-        print("Set scrape_status to 'running' for file upload.")
+        try:
+            redis_client.set('scrape_status', 'running')
+            print("Set scrape_status to 'running' for file upload.")
+        except Exception as e:
+            print(f"Error setting Redis status: {e}", file=sys.stderr)
     else:
         print("Redis client not available, skipping status set.")
     files_processed = 0
@@ -367,8 +389,11 @@ def clear_data():
 def launch_manual_scrape():
     try:
         if redis_client:
-            redis_client.set('scrape_status', 'running')
-            print("Set scrape_status to 'running' in Redis.")
+            try:
+                redis_client.set('scrape_status', 'running')
+                print("Set scrape_status to 'running' in Redis.")
+            except Exception as e:
+                 print(f"Error setting Redis status: {e}", file=sys.stderr)
         else:
             print("Redis client not available, skipping status set.")            
         print("Dispatching ETL chain to Celery worker.")
@@ -378,4 +403,3 @@ def launch_manual_scrape():
         print(f"Error dispatching scrape task: {e}", file=sys.stderr)
         flash('Error initiating manual scrape.', 'error')
     return redirect(url_for('index'))
-

@@ -8,16 +8,10 @@ from celery.schedules import crontab
 import pymupdf
 import json
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-
 def get_db_connection():
     return psycopg2.connect(os.environ['DATABASE_URL'])
-
-
 celery_app = Celery('tasks', broker='redis://redis:6379/0',
                     backend='redis://redis:6379/0')
-
-
 @celery_app.task
 def run_all_spiders_task():
     print("Scrape and Cleanup")
@@ -52,38 +46,33 @@ def run_all_spiders_task():
         print(
             f"An unexpected error occurred while trying to list spiders: {e}")
         raise e
-    for spider_name in spider_names:
+    EXCLUDE_SPIDERS = ['document', 'pdf', 'transform_data', 'nashville_arcgis']    
+    spiders_to_run = [name for name in spider_names if name and name not in EXCLUDE_SPIDERS]    
+    print(f"Spiders explicitly scheduled to run: {spiders_to_run}")
+    for spider_name in spiders_to_run:
         print(f"running spider: {spider_name}")
         try:
             subprocess.run([scrapy_executable, "crawl", spider_name],
                            cwd=project_dir, check=True, env=env)
         except Exception as e:
-            print(f"--- Spider '{spider_name}' failed with an error: {e} ---")
+            print(f"--- Spider '{spider_name}' failed with an error: {e} ---")    
     print(" scraping commands issued.")
     return "All spiders have finished."
-
-
 @celery_app.task(queue='transform')
 def transform_data_task(previous_task_result):
     print(f"Transformation task starting")
     run_transformations()
     print("all done transforming.")
     return "Transformation complete."
-
-
 @celery_app.task(name='tasks.scrape_and_transform_chain')
 def scrape_and_transform_chain():
     workflow = chain(run_all_spiders_task.s(),
                      transform_data_task.s().set(queue='transform'))
     workflow.apply_async()
-
-
 celery_app.conf.beat_schedule = {'run-full-etl-every-3-hours':
                                  {'task': 'tasks.scrape_and_transform_chain', 'schedule':
                                   crontab(minute=0, hour='*/3'), 'args': ()}}
 celery_app.conf.timezone = 'UTC'
-
-
 @celery_app.task
 def process_document_task(filepath, file_extension):
     print(f" processing task received")
@@ -167,4 +156,3 @@ def process_document_task(filepath, file_extension):
             print(f"insertion failed for {filepath}: {e}")
             return f"insertion failed for {filepath}"
     return f"processing finished for {filepath}"
-

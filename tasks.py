@@ -7,7 +7,9 @@ from celery import Celery, chain
 from celery.schedules import crontab
 import pymupdf
 import json
+import redis
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 def get_db_connection():
     return psycopg2.connect(os.environ['DATABASE_URL'])
 celery_app = Celery('tasks', broker='redis://redis:6379/0',
@@ -15,6 +17,7 @@ celery_app = Celery('tasks', broker='redis://redis:6379/0',
 @celery_app.task
 def run_all_spiders_task():
     print("Scrape and Cleanup")
+    redis_client.set('scrape_status', 'running')   
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -63,6 +66,7 @@ def transform_data_task(previous_task_result):
     print(f"Transformation task starting")
     run_transformations()
     print("all done transforming.")
+    redis_client.set('scrape_status', 'complete')
     return "Transformation complete."
 @celery_app.task(name='tasks.scrape_and_transform_chain')
 def scrape_and_transform_chain():
@@ -90,7 +94,6 @@ def process_document_task(filepath, file_extension):
             for page in doc:
                 full_text += page.get_text()
             doc.close()
-
             raw_data_payload["raw_json"] = {
                 "text": full_text,
                 "original_filepath": filepath
@@ -156,3 +159,4 @@ def process_document_task(filepath, file_extension):
             print(f"insertion failed for {filepath}: {e}")
             return f"insertion failed for {filepath}"
     return f"processing finished for {filepath}"
+

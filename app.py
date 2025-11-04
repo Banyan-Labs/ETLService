@@ -1,23 +1,34 @@
 import sys
-from flask import Flask, render_template_string, redirect, url_for, request, flash
+from flask import Flask, render_template_string, redirect, url_for, request, flash, jsonify
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from tasks import scrape_and_transform_chain, process_document_task
 from db_extractor import PostgresExtractor
 import os
+import redis
+
 UPLOAD_FOLDER = '/app/uploads'
 ALLOWED_EXTENSIONS = {'csv', 'json', 'pdf', 'xlsx', 'xls', 'docx'}
 PER_PAGE = 25
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'thisismykey'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 db_manager = PostgresExtractor()
+
+try:
+    redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
+    redis_client.ping()
+    print("Connected to Redis successfully!")
+except Exception as e:
+    print(f"Error connecting to Redis: {e}", file=sys.stderr)
+    redis_client = None
+
 def allowed_file(filename):
-    """Checks if the filename has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 def format_date_filter(iso_date_str):
-    """Jinja filter to format ISO date strings nicely."""
     if not iso_date_str:
         return ""
     try:
@@ -26,8 +37,8 @@ def format_date_filter(iso_date_str):
         return dt_object.strftime('%b %d, %Y at %I:%M %p')
     except (ValueError, TypeError):
         return iso_date_str
+
 def get_pagination_range(current_page, total_pages, max_visible=5):
-    """Calculates pagination links to display."""
     start_page = max(1, current_page - max_visible // 2)
     end_page = min(total_pages, start_page + max_visible - 1)
     if end_page - start_page + 1 < max_visible:
@@ -40,19 +51,22 @@ def get_pagination_range(current_page, total_pages, max_visible=5):
         'show_right_ellipsis': end_page < total_pages - 1,
         'pages': pages
     }
+
 app.jinja_env.filters['format_date'] = format_date_filter
+
 @app.route('/')
 def index():
-    """Renders the main dashboard page."""
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         try:
             os.makedirs(app.config['UPLOAD_FOLDER'])
         except OSError as e:
             print(f"Error creating upload directory: {e}", file=sys.stderr)
+            
     page = request.args.get('page', 1, type=int)
     selected_source = request.args.get('source', '')
     selected_category = request.args.get('category', '')
     search_term = request.args.get('search', '').strip()
+    
     try:
         events, sources, categories, total_pages, total_events = db_manager.fetch_paginated_data(
             page, selected_source, selected_category, search_term
@@ -61,7 +75,9 @@ def index():
         print(f"Error fetching data from database: {e}", file=sys.stderr)
         events, sources, categories, total_pages, total_events = [], [], [], 0, 0
         flash('Error fetching data from the database.', 'error')
+        
     pagination = get_pagination_range(page, total_pages)
+    
     html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -104,19 +120,35 @@ def index():
         .flash-message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .flash-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .flash-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-         /* Responsive adjustments */
+        #loading-overlay { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            color: white; 
+            z-index: 1000; 
+            text-align: center; 
+            padding-top: 20%; 
+        }
         @media (max-width: 768px) {
             .controls-container { flex-direction: column; align-items: stretch; }
             .filter-group { flex-direction: column; align-items: stretch; }
             .filter-group select, .filter-group input[type="text"], .filter-group button { width: 100%; box-sizing: border-box; margin-bottom: 5px; }
             .action-button { width: 100%; box-sizing: border-box; margin-bottom: 5px;}
-            th, td { white-space: normal; } /* Allow text wrapping on smaller screens */
+            th, td { white-space: normal; }
         }
     </style>
 </head>
 <body>
+    <div id="loading-overlay">
+        <h2>Scraping in progress, please wait...</h2>
+        <p>This page will automatically refresh when complete.</p>
+    </div>
     <div class="container">
-        <h1>Nashville ETL Dashboard</h1>        
+        <h1>Nashville ETL Dashboard</h1>
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
@@ -127,10 +159,10 @@ def index():
 
         <form action="{{ url_for('upload_document') }}" method="post" enctype="multipart/form-data" class="upload-form">
             <h3>Upload Documents for Processing (PDF, CSV, JSON, Excel)</h3>
-            <!-- *** Added 'multiple' attribute here *** -->
             <input type="file" name="document" required multiple>
             <button type="submit" class="action-button process-file-button">Process Files</button>
         </form>
+        
         <div class="controls-container">
             <form action="{{ url_for('index') }}" method="get" class="filter-group">
                 <select name="source">
@@ -149,15 +181,16 @@ def index():
                 <button type="submit" class="action-button">Filter/Search</button>
                 <a href="{{ url_for('index') }}" class="action-button clear-button" style="text-decoration: none;">Reset Filters</a>
             </form>
-             <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px;">
                 <form action="/clear" method="post" style="display: inline-block;">
                     <button type="submit" class="action-button clear-button">CLEAR ALL DATA</button>
                 </form>
-                <form action="/launch_manual_scrape" method="post" style="display: inline-block;">
+                <form action="/launch_manual_scrape" method="post" style="display: inline-block;" id="scrape-form">
                     <button type="submit" class="action-button manual-run-button">Manual Scrape Run</button>
                 </form>
             </div>
         </div>
+
         {% if total_events == 0 and not search_term and not selected_source and not selected_category %}
              <p>No events found. Data refreshes automatically or run a manual scrape.</p>
         {% elif total_events == 0 %}
@@ -180,6 +213,7 @@ def index():
                     {% endfor %}
                 </tbody>
             </table>
+            
             {% if total_pages > 1 %}
             <div class="pagination">
                 {% set page_args = {'source': selected_source, 'category': selected_category, 'search': search_term} %}
@@ -188,12 +222,14 @@ def index():
                 {% else %}
                     <span class="disabled">&laquo; Back</span>
                 {% endif %}
+                
                 {% if pagination.show_first %}
                     <a href="{{ url_for('index', page=1, **page_args) }}">1</a>
                 {% endif %}
                 {% if pagination.show_left_ellipsis %}
                     <span class="ellipsis">...</span>
                 {% endif %}
+                
                 {% for p in pagination.pages %}
                     {% if p == page %}
                         <a href="#" class="active">{{ p }}</a>
@@ -201,12 +237,14 @@ def index():
                         <a href="{{ url_for('index', page=p, **page_args) }}">{{ p }}</a>
                     {% endif %}
                 {% endfor %}
+                
                 {% if pagination.show_right_ellipsis %}
                     <span class="ellipsis">...</span>
                 {% endif %}
                 {% if pagination.show_last %}
                     <a href="{{ url_for('index', page=total_pages, **page_args) }}">{{ total_pages }}</a>
                 {% endif %}
+                
                 {% if page < total_pages %}
                     <a href="{{ url_for('index', page=page+1, **page_args) }}">Next &raquo;</a>
                 {% else %}
@@ -216,6 +254,43 @@ def index():
             {% endif %}
         {% endif %}
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const scrapeForm = document.getElementById('scrape-form');
+            
+            async function checkStatus() {
+                try {
+                    const response = await fetch('/scrape_status');
+                    const data = await response.json();
+                    
+                    if (data.status === 'running') {
+                        loadingOverlay.style.display = 'block';
+                        setTimeout(checkStatus, 5000); // Poll every 5 seconds
+                    } else if (data.status === 'complete') {
+                        loadingOverlay.style.display = 'none';
+                        window.location.href = window.location.pathname + window.location.search; // Reload page
+                    } else {
+                        loadingOverlay.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error checking scrape status:', error);
+                    loadingOverlay.style.display = 'none';
+                }
+            }
+            
+            checkStatus();
+
+            if (scrapeForm) {
+                scrapeForm.addEventListener('submit', function() {
+                    loadingOverlay.style.display = 'block';
+                    setTimeout(checkStatus, 2000); 
+                });
+            }
+        });
+    </script>
+
 </body>
 </html>
     """
@@ -232,17 +307,32 @@ def index():
         search_term=search_term,
         total_events=total_events
     )
+
+@app.route('/scrape_status')
+def scrape_status():
+    if not redis_client:
+        return jsonify({'status': 'idle', 'error': 'Redis not connected'})
+        
+    status = redis_client.get('scrape_status')
+    if status == 'complete':
+        redis_client.set('scrape_status', 'idle') 
+        return jsonify({'status': 'complete'})
+    elif status == 'running':
+        return jsonify({'status': 'running'})
+    return jsonify({'status': 'idle'})
+
 @app.route('/upload_document', methods=['POST'])
 def upload_document():
-    """Handles multiple file uploads and dispatches tasks."""
     uploaded_files = request.files.getlist('document')
 
     if not uploaded_files or uploaded_files[0].filename == '':
         print("ALERT: No files selected.")
         flash('No files selected for upload.', 'error')
         return redirect(url_for('index'))
+
     files_processed = 0
     files_skipped = 0
+    
     for file in uploaded_files:
         if file and allowed_file(file.filename):
             try:
@@ -261,16 +351,19 @@ def upload_document():
         elif file:
             print(f"ALERT: File type not allowed, skipped: {file.filename}")
             files_skipped += 1
+            
     if files_processed > 0:
         flash(
             f'Successfully dispatched {files_processed} file(s) for processing.', 'success')
     if files_skipped > 0:
         flash(
             f'Skipped {files_skipped} file(s) due to errors or disallowed types.', 'warning')
+            
     return redirect(url_for('index'))
+
+
 @app.route('/clear', methods=['POST'])
 def clear_data():
-    """Clears the events and raw_data tables."""
     conn = None
     try:
         conn = db_manager._get_connection()
@@ -292,10 +385,17 @@ def clear_data():
         if conn:
             conn.close()
     return redirect(url_for('index'))
+
+
 @app.route('/launch_manual_scrape', methods=['POST'])
 def launch_manual_scrape():
-    """Triggers the full scrape and transform chain."""
     try:
+        if redis_client:
+            redis_client.set('scrape_status', 'running')
+            print("Set scrape_status to 'running' in Redis.")
+        else:
+            print("Redis client not available, skipping status set.")
+            
         print("Dispatching ETL chain to Celery worker.")
         scrape_and_transform_chain.delay()
         flash('Manual scrape and transform process initiated.', 'success')
@@ -303,14 +403,3 @@ def launch_manual_scrape():
         print(f"Error dispatching scrape task: {e}", file=sys.stderr)
         flash('Error initiating manual scrape.', 'error')
     return redirect(url_for('index'))
-if __name__ == "__main__":
-    if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        try:
-            os.makedirs(app.config['UPLOAD_FOLDER'])
-            print(f"Created upload directory: {app.config['UPLOAD_FOLDER']}")
-        except OSError as e:
-            print(
-                f"CRITICAL ERROR: Could not create upload directory '{app.config['UPLOAD_FOLDER']}'. Error: {e}", file=sys.stderr)
-            sys.exit(1)
-    port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=True)

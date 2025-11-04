@@ -16,22 +16,7 @@ celery_app = Celery('tasks', broker='redis://redis:6379/0',
                     backend='redis://redis:6379/0')
 @celery_app.task
 def run_all_spiders_task():
-    print("Scrape and Cleanup")
-    redis_client.set('scrape_status', 'running')   
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "TRUNCATE TABLE events, raw_data RESTART IDENTITY CASCADE;")
-        conn.commit()
-        print("Database tables events and raw_data truncated successfully.")
-    except Exception as e:
-        conn.rollback()
-        print(f"Error during database TRUNCATE: {e}")
-        raise
-    finally:
-        cursor.close()
-        conn.close()
+    print("Scrape and Cleanup")    
     project_dir = '/app/scraper'
     scrapy_executable = "scrapy"
     env = os.environ.copy()
@@ -159,4 +144,5 @@ def process_document_task(filepath, file_extension):
             print(f"insertion failed for {filepath}: {e}")
             return f"insertion failed for {filepath}"
     return f"processing finished for {filepath}"
+
 

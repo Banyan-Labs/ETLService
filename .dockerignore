@@ -1,5 +1,6 @@
-# Python
-__pycache__/
+Python
+
+pycache/
 *.py[cod]
 *$py.class
 *.so
@@ -9,35 +10,43 @@ venv/
 ENV/
 env/
 
-# Environment files (will be passed at runtime)
+Environment files (will be passed at runtime)
+
 .env
 
-# Git
+Git
+
 .git/
 .gitignore
 .gitattributes
 
-# IDE
+IDE
+
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Output files
+Output files
+
 *.json
+!sites.json
 *.csv
 *.xlsx
 debug_screenshot.png
 scraped_data.db
 
-# Documentation
+Documentation
+
 README.md
 *.md
 
-# OS
+OS
+
 .DS_Store
 Thumbs.db
 
-# Logs
+Logs
+
 *.log

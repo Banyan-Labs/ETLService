@@ -1,15 +1,20 @@
 import scrapy
 import json
-import os
 from scrapy_playwright.page import PageMethod
 from scraper.nashville.items import BusinessItem
-
 class GenericSpider(scrapy.Spider):
     name = 'generic'
-    def start_requests(self):
-        config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sites.json')
-        with open(config_path, 'r') as f:
-            sites_config = json.load(f)
+    async def start(self):
+        config_path = '/app/sites.json'        
+        try:
+            with open(config_path, 'r') as f:
+                sites_config = json.load(f)
+        except FileNotFoundError:
+            self.logger.error(f"CRITICAL: sites.json file not found at {config_path}")
+            return
+        except Exception as e:
+            self.logger.error(f"CRITICAL: Failed to read or parse sites.json: {e}")
+            return
         for source, config in sites_config.items():
             meta = {'config': config, 'source': source}
             wait_selector = config.get('item_container_selector') or config.get('item_anchor_selector')
@@ -25,8 +30,7 @@ class GenericSpider(scrapy.Spider):
                     methods.append(PageMethod('wait_for_timeout', wait_time))
                 if methods:
                     meta['playwright_page_methods'] = methods
-            yield scrapy.Request(url=config['start_url'], callback=self.parse, meta=meta)
-            
+            yield scrapy.Request(url=config['start_url'], callback=self.parse, meta=meta)            
     def parse(self, response):
         config = response.meta['config']
         source = response.meta['source']
@@ -67,18 +71,18 @@ class GenericSpider(scrapy.Spider):
             else:
                 if item.get('url'):
                     item['url'] = response.urljoin(item['url'])
-                yield item
+                yield item                
     def parse_details(self, response):
         item = BusinessItem(response.meta['item'])
         config = response.meta['config']
         for field, css_selector in config.get('detail_page_fields', {}).items():
             data = self._extract_data(response, css_selector)
             item[field] = data.strip() if data else None
-        yield item
+        yield item        
     def _get_elements(self, element, selector_str):
         if selector_str.startswith('xpath:'):
             return element.xpath(selector_str.replace('xpath:', ''))
-        return element.css(selector_str)
+        return element.css(selector_str)        
     def _extract_data(self, element, selector_str):
         use_xpath = selector_str.startswith('xpath:')
         clean_selector = selector_str.replace('xpath:', '').replace('css:', '')

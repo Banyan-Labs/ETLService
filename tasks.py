@@ -46,7 +46,7 @@ def run_all_spiders_task():
         print(
             f"An unexpected error occurred while trying to list spiders: {e}")
         raise e
-    EXCLUDE_SPIDERS = ['document', 'pdf', 'transform_data', 'nashville_arcgis']    
+    EXCLUDE_SPIDERS = ['document', 'pdf', 'transform_data']    
     spiders_to_run = [name for name in spider_names if name and name not in EXCLUDE_SPIDERS]    
     print(f"Spiders explicitly scheduled to run: {spiders_to_run}")
     for spider_name in spiders_to_run:

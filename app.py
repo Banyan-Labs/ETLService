@@ -305,7 +305,7 @@ def index():
         search_term=search_term,
         total_events=total_events
     )
-    #randon test comment to see if coolify auto deploy starts
+    #randon test comment to see if coolify auto deploy startss
 @app.route('/scrape_status')
 def scrape_status():
     redis_client = get_redis_connection()

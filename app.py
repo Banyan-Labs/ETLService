@@ -13,13 +13,15 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'thisismykey'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 db_manager = PostgresExtractor()
-try:
-    redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
-    redis_client.ping()
-    print("Connected to Redis successfully!")
-except Exception as e:
-    print(f"Error connecting to Redis: {e}", file=sys.stderr)
-    redis_client = None
+def get_redis_connection():
+    try:
+        r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
+        r.ping()
+        print("Connected to Redis successfully!")
+        return r
+    except Exception as e:
+        print(f"Error connecting to Redis: {e}", file=sys.stderr)
+        return None
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -59,6 +61,7 @@ def index():
     search_term = request.args.get('search', '').strip()    
     events, sources, categories, total_pages, total_events = [], [], [], 0, 0    
     scrape_in_progress = False
+    redis_client = get_redis_connection()
     if redis_client:
         try:
             if redis_client.get('scrape_status') == 'running':
@@ -304,6 +307,7 @@ def index():
     )
 @app.route('/scrape_status')
 def scrape_status():
+    redis_client = get_redis_connection()
     if not redis_client:
         return jsonify({'status': 'idle', 'error': 'Redis not connected'})        
     status = 'idle'
@@ -327,6 +331,7 @@ def upload_document():
         print("ALERT: No files selected.")
         flash('No files selected for upload.', 'error')
         return redirect(url_for('index'))
+    redis_client = get_redis_connection()
     if redis_client:
         try:
             redis_client.set('scrape_status', 'running')
@@ -388,6 +393,7 @@ def clear_data():
 @app.route('/launch_manual_scrape', methods=['POST'])
 def launch_manual_scrape():
     try:
+        redis_client = get_redis_connection()
         if redis_client:
             try:
                 redis_client.set('scrape_status', 'running')

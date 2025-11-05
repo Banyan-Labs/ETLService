@@ -9,14 +9,29 @@ import pymupdf
 import json
 import redis
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 def get_db_connection():
     return psycopg2.connect(os.environ['DATABASE_URL'])
+def get_redis_connection():
+    try:
+        r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
+        r.ping()
+        print("Tasks: Connected to Redis successfully!")
+        return r
+    except Exception as e:
+        print(f"Tasks: Error connecting to Redis: {e}", file=sys.stderr)
+        return None
 celery_app = Celery('tasks', broker='redis://redis:6379/0',
                     backend='redis://redis:6379/0')
 @celery_app.task
 def run_all_spiders_task():
-    print("Scrape and Cleanup")    
+    print("Scrape and Cleanup")
+    
+    redis_client = get_redis_connection()
+    if redis_client:
+        try:
+            redis_client.set('scrape_status', 'running')
+        except Exception as e:
+            print(f"Error setting Redis status in run_all_spiders_task: {e}", file=sys.stderr)
     project_dir = '/app/scraper'
     scrapy_executable = "scrapy"
     env = os.environ.copy()
@@ -33,9 +48,9 @@ def run_all_spiders_task():
     except Exception as e:
         print(
             f"An unexpected error occurred while trying to list spiders: {e}")
-        raise e
-    EXCLUDE_SPIDERS = ['document', 'pdf', 'transform_data']    
-    spiders_to_run = [name for name in spider_names if name and name not in EXCLUDE_SPIDERS]    
+        raise e        
+    EXCLUDE_SPIDERS = ['document', 'pdf', 'transform_data']     
+    spiders_to_run = [name for name in spider_names if name and name not in EXCLUDE_SPIDERS]     
     print(f"Spiders explicitly scheduled to run: {spiders_to_run}")
     for spider_name in spiders_to_run:
         print(f"running spider: {spider_name}")
@@ -43,15 +58,21 @@ def run_all_spiders_task():
             subprocess.run([scrapy_executable, "crawl", spider_name],
                            cwd=project_dir, check=True, env=env)
         except Exception as e:
-            print(f"--- Spider '{spider_name}' failed with an error: {e} ---")    
+            print(f"--- Spider '{spider_name}' failed with an error: {e} ---")             
     print(" scraping commands issued.")
     return "All spiders have finished."
 @celery_app.task(queue='transform')
 def transform_data_task(previous_task_result):
     print(f"Transformation task starting")
     run_transformations()
-    print("all done transforming.")
-    redis_client.set('scrape_status', 'complete')
+    print("all done transforming.")    
+    redis_client = get_redis_connection()
+    if redis_client:
+        try:
+            redis_client.set('scrape_status', 'complete')
+            print("Set scrape_status to 'complete' in Redis.")
+        except Exception as e:
+            print(f"Error setting Redis status in transform_data_task: {e}", file=sys.stderr)            
     return "Transformation complete."
 @celery_app.task(name='tasks.scrape_and_transform_chain')
 def scrape_and_transform_chain():
@@ -79,6 +100,7 @@ def process_document_task(filepath, file_extension):
             for page in doc:
                 full_text += page.get_text()
             doc.close()
+
             raw_data_payload["raw_json"] = {
                 "text": full_text,
                 "original_filepath": filepath
@@ -144,5 +166,3 @@ def process_document_task(filepath, file_extension):
             print(f"insertion failed for {filepath}: {e}")
             return f"insertion failed for {filepath}"
     return f"processing finished for {filepath}"
-
-

@@ -11,7 +11,7 @@ services:
     ports:
       - "5439:5432"
     volumes:
-      - pgdata_v7:/var/lib/postgresql/data
+      - pgdata_v8:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nashville_user -d nashville_tourism"]
       interval: 10s
@@ -120,7 +120,7 @@ services:
       - nashville-network
     restart: unless-stopped
 volumes:
-  pgdata_v7:
+  pgdata_v8:
 networks:
   nashville-network:
     driver: bridge

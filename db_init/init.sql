@@ -24,3 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_events_order_filter
 ON events (source, event_date ASC, name ASC);
 CREATE INDEX IF NOT EXISTS idx_events_fulltext
 ON events USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_events_category
+ON events (category);
+CREATE INDEX IF NOT EXISTS idx_events_source_category
+ON events (source, category);
